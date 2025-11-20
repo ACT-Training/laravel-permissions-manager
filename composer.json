@@ -1,0 +1,52 @@
+{
+    "name": "acttraining/laravel-permissions-manager",
+    "description": "A comprehensive roles and permissions management UI for Laravel applications, built on Spatie Laravel Permission with Livewire and FluxUI Pro.",
+    "keywords": [
+        "laravel",
+        "permissions",
+        "roles",
+        "spatie",
+        "livewire",
+        "flux",
+        "acl",
+        "rbac"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Simon Barrett",
+            "email": "simon@acttraining.org.uk"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^12.0",
+        "spatie/laravel-permission": "^6.0",
+        "livewire/livewire": "^3.0",
+        "act-training/query-builder": "dev-88-add-groupby-to-report-builder"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ACTTraining\\PermissionsManager\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ACTTraining\\PermissionsManager\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "ACTTraining\\PermissionsManager\\PermissionsManagerServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
