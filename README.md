@@ -42,7 +42,7 @@ Perfect for ACT Training internal applications and any Laravel project requiring
 ### Step 1: Install the Package
 
 ```bash
-composer require acttraining/laravel-permissions-manager
+composer require act-training/laravel-permissions-manager
 ```
 
 ### Step 2: Publish Configuration and Migrations
