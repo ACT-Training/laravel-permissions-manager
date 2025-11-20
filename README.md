@@ -7,13 +7,21 @@ Perfect for ACT Training internal applications and any Laravel project requiring
 ## Features
 
 ✅ **Complete CRUD** for permissions and roles
+
 ✅ **UUID-based** primary keys with Spatie Permission integration
+
 ✅ **Category-based** organization with colour-coded badges
+
 ✅ **Protected roles** that cannot be deleted
+
 ✅ **User assignment** tracking and prevention of deletions
+
 ✅ **FluxUI Pro** components for beautiful UI
+
 ✅ **TableBuilder** integration for powerful tables
+
 ✅ **Fully customizable** views, models, and categories
+
 ✅ **Comprehensive tests** included
 
 ---
@@ -321,45 +329,6 @@ composer install
 
 ```bash
 vendor/bin/phpunit
-```
-
----
-
-## Migration from Quality App
-
-If you're migrating from the original Quality app implementation:
-
-### Step 1: Install Package
-
-```bash
-composer require acttraining/laravel-permissions-manager
-```
-
-### Step 2: Keep Your Category Enum
-
-Your existing `App\Enums\PermissionCategoryEnum` remains in your app. Update config to reference it.
-
-### Step 3: Update Namespaces in Tests
-
-Update test imports from `App\Livewire\Admin\*` to `ACTTraining\PermissionsManager\Livewire\*`.
-
-### Step 4: Remove Local Files
-
-Delete the following from your app:
-- `app/Livewire/Admin/PermissionsTable.php`
-- `app/Livewire/Admin/RolesTable.php`
-- `app/Livewire/Admin/PermissionsAndRoles.php`
-- Related views (unless you've customized them - then publish and merge)
-
-### Step 5: Update Routes
-
-Replace route definitions to use package components.
-
-### Step 6: Run Tests
-
-```bash
-php artisan test --filter=Permissions
-php artisan test --filter=Roles
 ```
 
 ---
