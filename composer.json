@@ -1,5 +1,5 @@
 {
-    "name": "acttraining/laravel-permissions-manager",
+    "name": "act-training/laravel-permissions-manager",
     "description": "A comprehensive roles and permissions management UI for Laravel applications, built on Spatie Laravel Permission with Livewire and FluxUI Pro.",
     "keywords": [
         "laravel",
