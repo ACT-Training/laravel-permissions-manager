@@ -23,12 +23,14 @@
         "php": "^8.2",
         "laravel/framework": "^12.0",
         "spatie/laravel-permission": "^6.0",
-        "livewire/livewire": "^3.0",
-        "act-training/query-builder": "dev-main"
+        "livewire/livewire": "^3.0|^4.0",
+        "act-training/query-builder": "^2.3|^3.0"
     },
     "require-dev": {
-        "orchestra/testbench": "^9.0",
-        "phpunit/phpunit": "^11.0"
+        "livewire/flux": "^2.21",
+        "orchestra/testbench": "^10.0",
+        "phpunit/phpunit": "^11.0",
+        "spatie/enum": "^3.13"
     },
     "autoload": {
         "psr-4": {
@@ -40,6 +42,9 @@
             "ACTTraining\\PermissionsManager\\Tests\\": "tests/"
         }
     },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
     "extra": {
         "laravel": {
             "providers": [
@@ -47,6 +52,7 @@
             ]
         }
     },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    "config": {
+        "sort-packages": true
+    }
 }

@@ -4,6 +4,7 @@ namespace ACTTraining\PermissionsManager\Livewire;
 
 use ACTTraining\PermissionsManager\Models\Permission;
 use ACTTraining\PermissionsManager\Models\Role;
+use ACTTraining\PermissionsManager\Support\PermissionCategories;
 use ACTTraining\QueryBuilder\Support\Columns\Column;
 use ACTTraining\QueryBuilder\Support\Filters\SelectFilter;
 use ACTTraining\QueryBuilder\Support\Filters\TextFilter;
@@ -321,19 +322,11 @@ class PermissionsTable extends TableBuilder
      */
     public function filters(): array
     {
-        $categoryEnum = config('permissions-manager.category_enum');
-
         return [
             TextFilter::make('Permission', 'name'),
 
             SelectFilter::make('Category', 'category')
-                ->withOptions(
-                    collect($categoryEnum::toArray())
-                        ->mapWithKeys(fn ($value, $key) => [
-                            $key => $categoryEnum::make($key)->label,
-                        ])
-                        ->toArray()
-                ),
+                ->withOptions(PermissionCategories::options()),
         ];
     }
 

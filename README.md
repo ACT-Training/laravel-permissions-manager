@@ -1,6 +1,6 @@
 # Laravel Permissions Manager
 
-A comprehensive roles and permissions management UI for Laravel applications, built on **Spatie Laravel Permission** with **Livewire 3** and **FluxUI Pro** components.
+A comprehensive roles and permissions management UI for Laravel applications, built on **Spatie Laravel Permission** with **Livewire 3 or 4** and **FluxUI Pro** components.
 
 Perfect for ACT Training internal applications and any Laravel project requiring a robust, UUID-based permissions management interface.
 
@@ -12,7 +12,7 @@ Perfect for ACT Training internal applications and any Laravel project requiring
 
 ✅ **Category-based** organization with colour-coded badges
 
-✅ **Protected roles** that cannot be deleted
+✅ **Protected roles** that cannot be deleted or renamed
 
 ✅ **User assignment** tracking and prevention of deletions
 
@@ -22,18 +22,20 @@ Perfect for ACT Training internal applications and any Laravel project requiring
 
 ✅ **Fully customizable** views, models, and categories
 
-✅ **Comprehensive tests** included
+✅ **Tested** on Livewire 3 and Livewire 4
 
 ---
 
 ## Requirements
 
 - PHP 8.2+
-- Laravel 12+
-- Spatie Laravel Permission 6+
-- Livewire 3+
+- Laravel 12
+- Spatie Laravel Permission 6
+- Livewire 3 or 4
 - FluxUI Pro
-- ACT Training QueryBuilder package
+- ACT Training QueryBuilder 2.3+ or 3.x (installed automatically)
+
+No enum package is required: categories are a plain PHP backed enum.
 
 ---
 
@@ -65,10 +67,10 @@ This will add `description` and `category` columns to your `permissions` table, 
 
 ### Step 4: Create Your Category Enum (Recommended)
 
-Create an enum that implements the `HasColor` contract:
+Create a string-backed enum that implements the `HasColor` contract (and, optionally, `HasLabel`):
 
 ```bash
-php artisan make:enum PermissionCategoryEnum
+php artisan make:enum PermissionCategoryEnum --string
 ```
 
 ```php
@@ -77,34 +79,43 @@ php artisan make:enum PermissionCategoryEnum
 namespace App\Enums;
 
 use ACTTraining\PermissionsManager\Contracts\HasColor;
-use Livewire\Wireable;
-use Spatie\Enum\Laravel\Enum;
+use ACTTraining\PermissionsManager\Contracts\HasLabel;
 
-final class PermissionCategoryEnum extends Enum implements HasColor, Wireable
+enum PermissionCategoryEnum: string implements HasColor, HasLabel
 {
-    protected static function labels(): array
+    case Admin = 'admin';
+    case Forms = 'forms';
+    case Users = 'users';
+    case Settings = 'settings';
+    case Other = 'other';
+
+    public function label(): string
     {
-        return [
-            'admin' => 'Admin',
-            'forms' => 'Forms',
-            'users' => 'Users',
-            'settings' => 'Settings',
-            'other' => 'Other',
-        ];
+        return match ($this) {
+            self::Admin => 'Admin',
+            self::Forms => 'Forms',
+            self::Users => 'Users',
+            self::Settings => 'Settings',
+            self::Other => 'Other',
+        };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::admin() => 'pink',
-            self::forms() => 'purple',
-            self::users() => 'orange',
-            self::settings() => 'red',
-            self::other() => 'gray',
+            self::Admin => 'pink',
+            self::Forms => 'purple',
+            self::Users => 'orange',
+            self::Settings => 'red',
+            self::Other => 'gray',
         };
     }
 }
 ```
+
+The backing value (e.g. `admin`) is what is stored in the `permissions.category` column. If the enum has no `label()` method, the label is made from the case name (`DataKpis` becomes "Data Kpis").
+
+> **Upgrading from 1.0?** Enums built on `spatie/laravel-enum` (or `spatie/enum`) still work unchanged: the package reads their `toArray()`, `make()` and `label` as before. The package no longer needs either enum package itself, so you only need one installed if your own enum uses it.
 
 ### Step 5: Update Configuration
 
@@ -149,7 +160,7 @@ The `config/permissions-manager.php` file provides extensive customization optio
 'category_enum' => App\Enums\PermissionCategoryEnum::class,
 ```
 
-Specify your custom enum class. Must implement `ACTTraining\PermissionsManager\Contracts\HasColor`.
+Specify your custom enum class. It must implement `ACTTraining\PermissionsManager\Contracts\HasColor`, and should be a string-backed PHP enum (spatie enums from version 1.0 are still supported).
 
 ### Models
 
@@ -184,7 +195,13 @@ Control guard visibility in the UI. When `show_selection` is `false`, the guard 
 ],
 ```
 
-List role names that cannot be deleted. These roles are critical to system functionality.
+A role is protected when its `is_protected` column is `true`; protected roles cannot be deleted or renamed in the UI (their description and permissions can still be edited). Set the flag for the roles your application relies on by name, for example in a seeder:
+
+```php
+Role::whereIn('name', ['Admin', 'Basic'])->update(['is_protected' => true]);
+```
+
+The `protected_roles` list documents those names; the package itself checks the `is_protected` column.
 
 ### Pagination
 
@@ -233,7 +250,19 @@ Visit `/admin/permissions-and-roles` (or your configured route) to access the pe
 
 Use the action menu (⋮) on each row to edit or delete permissions/roles.
 
-**Note:** Protected roles cannot be deleted, and roles/permissions assigned to users cannot be deleted until unassigned.
+**Note:** Protected roles cannot be deleted or renamed, and roles/permissions assigned to users cannot be deleted until unassigned.
+
+### Embedding the Components
+
+The page and its two tables are Livewire components you can place in your own views:
+
+```blade
+<livewire:permissions-manager::permissions-and-roles />
+<livewire:permissions-manager::roles-table />
+<livewire:permissions-manager::permissions-table />
+```
+
+These names work on both Livewire 3 and Livewire 4; on Livewire 4 the package registers `permissions-manager` as a component namespace, so no extra setup is needed in your app.
 
 ---
 
@@ -283,7 +312,7 @@ The package uses ACT Training's QueryBuilder package for tables. You can overrid
 
 ## Testing
 
-The package includes a comprehensive test suite using PHPUnit.
+The package has a PHPUnit test suite, run in CI on Livewire 3 and 4 with both the lowest and latest allowed dependencies.
 
 ### Running Tests
 
@@ -291,25 +320,7 @@ The package includes a comprehensive test suite using PHPUnit.
 composer test
 ```
 
-### Writing Tests for Your App
-
-Extend the package's TestCase:
-
-```php
-<?php
-
-namespace Tests\Feature;
-
-use ACTTraining\PermissionsManager\Tests\TestCase;
-
-class PermissionsTest extends TestCase
-{
-    public function test_can_create_permission()
-    {
-        // Your test here
-    }
-}
-```
+The tests use the free `livewire/flux` package; the two Flux Pro components the views use (the listbox select and its option) are replaced by simple stand-ins in `tests/stubs`.
 
 ---
 
@@ -350,7 +361,7 @@ composer require livewire/flux-pro
 
 **Solution:** Install the QueryBuilder package:
 ```bash
-composer require act-training/query-builder:dev-88-add-groupby-to-report-builder
+composer require act-training/query-builder
 ```
 
 ### UUID Issues

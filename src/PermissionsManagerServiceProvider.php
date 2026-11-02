@@ -28,10 +28,7 @@ class PermissionsManagerServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'permissions-manager');
 
-        // Register Livewire components
-        Livewire::component('permissions-manager::permissions-table', PermissionsTable::class);
-        Livewire::component('permissions-manager::roles-table', RolesTable::class);
-        Livewire::component('permissions-manager::permissions-and-roles', PermissionsAndRoles::class);
+        $this->registerLivewireComponents();
 
         // Publishing
         if ($this->app->runningInConsole()) {
@@ -49,6 +46,23 @@ class PermissionsManagerServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../resources/views' => resource_path('views/vendor/permissions-manager'),
             ], 'permissions-manager-views');
+        }
+    }
+
+    /**
+     * Register the Livewire components under the "permissions-manager::" prefix.
+     *
+     * Livewire 4 treats a name containing "::" as a component namespace, so the
+     * namespace is registered there; Livewire 3 resolves the explicit names.
+     */
+    protected function registerLivewireComponents(): void
+    {
+        Livewire::component('permissions-manager::permissions-table', PermissionsTable::class);
+        Livewire::component('permissions-manager::roles-table', RolesTable::class);
+        Livewire::component('permissions-manager::permissions-and-roles', PermissionsAndRoles::class);
+
+        if (method_exists(app('livewire'), 'addNamespace')) {
+            Livewire::addNamespace('permissions-manager', classNamespace: 'ACTTraining\\PermissionsManager\\Livewire');
         }
     }
 }
