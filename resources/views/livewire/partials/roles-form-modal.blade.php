@@ -14,8 +14,12 @@
                     placeholder="e.g., Manager"
                     required
                     aria-label="Role name"
+                    :disabled="$editingRoleIsProtected"
                 />
                 <flux:error name="form.name" />
+                @if ($editingRoleIsProtected)
+                    <flux:description>This is a protected role, so its name cannot be changed.</flux:description>
+                @endif
             </flux:field>
 
             {{-- Description Field --}}

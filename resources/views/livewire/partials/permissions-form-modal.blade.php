@@ -41,14 +41,8 @@
                     aria-label="Permission category"
                 >
                     <flux:select.option value="">None</flux:select.option>
-                    @php
-                        $categoryEnumClass = config('permissions-manager.category_enum');
-                    @endphp
-                    @foreach ($categoryEnumClass::toArray() as $key => $value)
-                        @php
-                            $enum = $categoryEnumClass::make($key);
-                        @endphp
-                        <flux:select.option value="{{ $key }}">{{ $enum->label }}</flux:select.option>
+                    @foreach (\ACTTraining\PermissionsManager\Support\PermissionCategories::options() as $categoryValue => $categoryLabel)
+                        <flux:select.option value="{{ $categoryValue }}">{{ $categoryLabel }}</flux:select.option>
                     @endforeach
                 </flux:select>
                 <flux:error name="form.category" />

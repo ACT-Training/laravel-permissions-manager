@@ -18,7 +18,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Specify the fully qualified class name of your Permission Category Enum.
-    | This enum must implement ACTTraining\PermissionsManager\Contracts\HasColor.
+    | This should be a string-backed PHP enum implementing
+    | ACTTraining\PermissionsManager\Contracts\HasColor (and optionally HasLabel).
+    | Enums built on spatie/enum are also supported.
     |
     | If not specified, the package's default PermissionCategoryEnum will be used.
     |
@@ -62,9 +64,9 @@ return [
     | Protected Roles
     |--------------------------------------------------------------------------
     |
-    | List of role names that cannot be deleted through the UI or API.
-    | These roles are critical to system functionality and should remain
-    | protected. The is_protected flag on roles controls this behaviour.
+    | Role names your application relies on. Protection itself comes from the
+    | is_protected flag on each role: protected roles cannot be deleted or
+    | renamed through the UI.
     |
     */
     'protected_roles' => [

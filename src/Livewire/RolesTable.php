@@ -4,6 +4,7 @@ namespace ACTTraining\PermissionsManager\Livewire;
 
 use ACTTraining\PermissionsManager\Models\Permission;
 use ACTTraining\PermissionsManager\Models\Role;
+use ACTTraining\PermissionsManager\Support\PermissionCategories;
 use ACTTraining\QueryBuilder\Support\Columns\Column;
 use ACTTraining\QueryBuilder\TableBuilder;
 use Exception;
@@ -23,6 +24,8 @@ class RolesTable extends TableBuilder
     public bool $showDeleteModal = false;
 
     public ?string $editingRole = null;
+
+    public bool $editingRoleIsProtected = false;
 
     public ?string $deletingRole = null;
 
@@ -118,12 +121,10 @@ class RolesTable extends TableBuilder
     #[Computed]
     public function availableCategories(): array
     {
-        $categoryEnum = config('permissions-manager.category_enum');
-
-        return collect($categoryEnum::toArray())
-            ->map(fn ($value, $key) => [
-                'value' => $key,
-                'label' => $categoryEnum::make($key)->label,
+        return collect(PermissionCategories::options())
+            ->map(fn (string $label, int|string $value): array => [
+                'value' => (string) $value,
+                'label' => $label,
             ])
             ->values()
             ->toArray();
@@ -137,6 +138,7 @@ class RolesTable extends TableBuilder
     {
         $this->resetForm();
         $this->editingRole = null;
+        $this->editingRoleIsProtected = false;
         $this->categoryFilter = null;
         $this->showRoleModal = true;
     }
@@ -151,6 +153,7 @@ class RolesTable extends TableBuilder
             $role = $roleModel::with('permissions')->findOrFail($uuid);
 
             $this->editingRole = $role->uuid;
+            $this->editingRoleIsProtected = (bool) $role->is_protected;
             $this->form = [
                 'name' => $role->name,
                 'description' => $role->description ?? '',
@@ -229,16 +232,22 @@ class RolesTable extends TableBuilder
     {
         $this->validate($this->getValidationRules());
 
+        if ($this->isRenamingProtectedRole()) {
+            $this->addError('form.name', 'Protected roles cannot be renamed.');
+
+            return;
+        }
+
         try {
             DB::transaction(function () {
                 $roleModel = config('permissions-manager.models.role', Role::class);
                 $permissionModel = config('permissions-manager.models.permission', Permission::class);
 
                 if ($this->editingRole) {
-                    // Update existing role
+                    // Update existing role (protected roles keep their name)
                     $role = $roleModel::findOrFail($this->editingRole);
                     $role->update([
-                        'name' => $this->form['name'],
+                        'name' => $role->is_protected ? $role->name : $this->form['name'],
                         'description' => $this->form['description'],
                     ]);
                 } else {
@@ -371,6 +380,7 @@ class RolesTable extends TableBuilder
     {
         $this->showRoleModal = false;
         $this->editingRole = null;
+        $this->editingRoleIsProtected = false;
         $this->categoryFilter = null;
         $this->resetForm();
         $this->resetValidation();
@@ -432,6 +442,23 @@ class RolesTable extends TableBuilder
             'form.permissions' => 'array',
             'form.permissions.*' => 'exists:permissions,uuid',
         ];
+    }
+
+    /**
+     * Determine whether the save would change the name of a protected role.
+     */
+    protected function isRenamingProtectedRole(): bool
+    {
+        if (! $this->editingRole) {
+            return false;
+        }
+
+        $roleModel = config('permissions-manager.models.role', Role::class);
+        $role = $roleModel::find($this->editingRole);
+
+        return $role !== null
+            && $role->is_protected
+            && $role->name !== $this->form['name'];
     }
 
     /**

@@ -3,8 +3,7 @@
 namespace ACTTraining\PermissionsManager\Enums;
 
 use ACTTraining\PermissionsManager\Contracts\HasColor;
-use Livewire\Wireable;
-use Spatie\Enum\Laravel\Enum;
+use ACTTraining\PermissionsManager\Contracts\HasLabel;
 
 /**
  * Default Permission Category Enum.
@@ -12,49 +11,43 @@ use Spatie\Enum\Laravel\Enum;
  * Provides basic categorisation of permissions with colour-coded badges
  * for visual grouping in the permissions management interface.
  *
- * Applications can extend this enum or create their own implementation
- * by specifying a different enum in the config/permissions-manager.php file.
- *
- * @method static self admin()
- * @method static self users()
- * @method static self content()
- * @method static self settings()
- * @method static self other()
+ * Applications can create their own implementation and specify it in the
+ * config/permissions-manager.php file. The stored category value is the
+ * enum's backing value.
  */
-final class PermissionCategoryEnum extends Enum implements HasColor, Wireable
+enum PermissionCategoryEnum: string implements HasColor, HasLabel
 {
+    case Admin = 'admin';
+    case Users = 'users';
+    case Content = 'content';
+    case Settings = 'settings';
+    case Other = 'other';
+
     /**
-     * Get the display labels for each category.
-     *
-     * @return array<string, string>
+     * Get the display label for the category.
      */
-    protected static function labels(): array
+    public function label(): string
     {
-        return [
-            'admin' => 'Admin',
-            'users' => 'Users',
-            'content' => 'Content',
-            'settings' => 'Settings',
-            'other' => 'Other',
-        ];
+        return match ($this) {
+            self::Admin => 'Admin',
+            self::Users => 'Users',
+            self::Content => 'Content',
+            self::Settings => 'Settings',
+            self::Other => 'Other',
+        };
     }
 
     /**
-     * Get the Tailwind colour class for the category badge.
-     *
-     * Returns colour names that are used with Flux badge components
-     * to provide visual categorisation of permissions.
-     *
-     * @return string Tailwind colour class name
+     * Get the Tailwind colour name for the category badge.
      */
     public function color(): string
     {
         return match ($this) {
-            self::admin() => 'pink',
-            self::users() => 'orange',
-            self::content() => 'blue',
-            self::settings() => 'purple',
-            self::other() => 'gray',
+            self::Admin => 'pink',
+            self::Users => 'orange',
+            self::Content => 'blue',
+            self::Settings => 'purple',
+            self::Other => 'gray',
         };
     }
 }

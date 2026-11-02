@@ -1,12 +1,16 @@
 @props(['row', 'value' => null, 'column' => null])
 
-@if($row->category)
-    @php
-        $categoryEnum = config('permissions-manager.category_enum');
-        $category = $categoryEnum::make($row->category);
-    @endphp
-    <flux:badge color="{{ $category->color() }}">
-        {{ $category->label }}
+@php
+    $categoryLabel = \ACTTraining\PermissionsManager\Support\PermissionCategories::label($row->category);
+@endphp
+
+@if($categoryLabel !== null)
+    <flux:badge color="{{ \ACTTraining\PermissionsManager\Support\PermissionCategories::color($row->category) ?? 'zinc' }}">
+        {{ $categoryLabel }}
+    </flux:badge>
+@elseif($row->category)
+    <flux:badge color="zinc">
+        {{ $row->category }}
     </flux:badge>
 @else
     <flux:badge color="zinc" class="text-gray-500">
