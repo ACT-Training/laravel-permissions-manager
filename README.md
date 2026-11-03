@@ -28,8 +28,8 @@ Perfect for ACT Training internal applications and any Laravel project requiring
 
 ## Requirements
 
-- PHP 8.2+
-- Laravel 12
+- PHP 8.2+ (8.3+ for Laravel 13)
+- Laravel 12 or 13
 - Spatie Laravel Permission 6
 - Livewire 3 or 4
 - FluxUI Pro

@@ -4,6 +4,17 @@ All notable changes to `laravel-permissions-manager` will be documented in this 
 
 ## [Unreleased]
 
+Suggested version: 1.2.0 (additive; nothing changes for apps on Laravel 12).
+
+### Added
+- Laravel 13 support. Requires `laravel/framework` `^12.0|^13.0`. Laravel 13 itself needs PHP 8.3+.
+- The GitHub Actions workflow now also runs on Laravel 13 (PHP 8.4), alongside Laravel 12.
+
+### Changed
+- Dev dependencies widened so the tests run on both versions: `orchestra/testbench` `^10.0|^11.0`, `phpunit/phpunit` `^11.0|^12.0`.
+
+## [1.1.0] - 2026-11-02
+
 ### Added
 - Livewire 4 support. The `permissions-manager::` component names now resolve on Livewire 4 without the app registering a namespace.
 - Protected roles (`is_protected`) can no longer be renamed; their description and permissions can still be edited.
