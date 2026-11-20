@@ -34,7 +34,8 @@ return [
     |
     | Specify the models to use for permissions, roles, and users.
     | By default, the package uses its own models which extend Spatie's models
-    | with UUID support. You can override these with your own models.
+    | with UUID support. You can override these with your own models, including
+    | models with integer ids that extend Spatie's models directly.
     |
     */
     'models' => [
@@ -99,6 +100,25 @@ return [
     */
     'features' => [
         'category_filtering' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authorisation
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, every action checks Laravel's Gate against the configured
+    | role or permission model using the standard policy abilities: viewAny
+    | (seeing the tables), create (creating and duplicating), update (editing)
+    | and delete. Denied actions throw a 403 and their buttons are hidden.
+    |
+    | Register policies for your role and permission models (or allow access
+    | with Gate::before). With this enabled, a model that has no policy is
+    | denied by the Gate.
+    |
+    */
+    'authorization' => [
+        'enabled' => env('PERMISSIONS_MANAGER_AUTHORIZE', false),
     ],
 
 ];

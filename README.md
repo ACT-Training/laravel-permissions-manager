@@ -2,13 +2,15 @@
 
 A comprehensive roles and permissions management UI for Laravel applications, built on **Spatie Laravel Permission** with **Livewire 3 or 4** and **FluxUI Pro** components.
 
-Perfect for ACT Training internal applications and any Laravel project requiring a robust, UUID-based permissions management interface.
+Perfect for ACT Training internal applications and any Laravel project requiring a robust permissions management interface, whether its role tables use UUIDs or integer ids.
 
 ## Features
 
 ✅ **Complete CRUD** for permissions and roles
 
-✅ **UUID-based** primary keys with Spatie Permission integration
+✅ **UUID or integer** primary keys with Spatie Permission integration
+
+✅ **Optional authorisation** of every action through Laravel policies
 
 ✅ **Category-based** organization with colour-coded badges
 
@@ -224,6 +226,41 @@ Configure pagination for permissions and roles lists.
 
 Enable/disable category filtering in the role editor.
 
+### Authorisation
+
+By default the package does no authorisation of its own: protect the page with route middleware, as in Step 6. To check each action as well, switch on the Gate checks:
+
+```php
+'authorization' => [
+    'enabled' => env('PERMISSIONS_MANAGER_AUTHORIZE', false),
+],
+```
+
+or set `PERMISSIONS_MANAGER_AUTHORIZE=true` in `.env`. Each action then asks Laravel's Gate, using the standard policy abilities, against the configured role or permission model:
+
+| Action | Component method | Ability |
+| --- | --- | --- |
+| See the roles or permissions table (every request) | `booted()` | `viewAny` (model class) |
+| Open the create form | `createRole()`, `createPermission()` | `create` (model class) |
+| Save a new record | `saveRole()`, `savePermission()` with nothing being edited | `create` (model class) |
+| Duplicate a role | `duplicateRole($key)` | `create` (role class) |
+| Open the edit form | `editRole($key)`, `editPermission($key)` | `update` (the record) |
+| Save an existing record | `saveRole()`, `savePermission()` while editing | `update` (the record) |
+| Delete | `deleteRole($key)`, `deletePermission($key)`, `confirmDelete()` | `delete` (the record) |
+
+A denied action throws `Illuminate\Auth\Access\AuthorizationException`, so Livewire returns a 403. The checks run on the server inside each action, because Livewire actions can be called directly; the matching buttons and menu items are also hidden. The page shows only the tables the user may view, and returns a 403 if they may view neither.
+
+Register policies for your role and permission models, for example:
+
+```php
+Gate::policy(App\Models\Role::class, App\Policies\RolePolicy::class);
+Gate::policy(App\Models\Permission::class, App\Policies\PermissionPolicy::class);
+```
+
+> **Note:** with authorisation enabled, a model with no registered policy is denied by Laravel's Gate (and so are guests), unless a `Gate::before` callback allows it. This is intended: switching the option on should never open anything up by accident.
+
+When the option is off (the default), no checks run and nothing is hidden.
+
 ---
 
 ## Usage
@@ -304,6 +341,70 @@ Then update `config/permissions-manager.php`:
 ],
 ```
 
+### Integer ids (non-UUID apps)
+
+The package's own `Role` and `Permission` models use UUID primary keys, but nothing else in the package assumes UUIDs. If your app uses Spatie's standard tables (with `bigint` `id` columns), point the package at your own models instead. Every lookup, validation rule, view and the user-count query then uses each model's own key, table and Spatie's configured column names.
+
+1. Create app-side models that extend Spatie's models and add the package's extra columns:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Spatie\Permission\Models\Role as SpatieRole;
+
+class Role extends SpatieRole
+{
+    protected $fillable = ['name', 'guard_name', 'description', 'is_protected'];
+
+    protected function casts(): array
+    {
+        return ['is_protected' => 'boolean'];
+    }
+}
+```
+
+```php
+<?php
+
+namespace App\Models;
+
+use Spatie\Permission\Models\Permission as SpatiePermission;
+
+class Permission extends SpatiePermission
+{
+    protected $fillable = ['name', 'guard_name', 'description', 'category'];
+}
+```
+
+2. Use them in both configs. Spatie's defaults for the morph key and pivot columns already match its standard tables:
+
+```php
+// config/permission.php
+'models' => [
+    'permission' => App\Models\Permission::class,
+    'role' => App\Models\Role::class,
+],
+
+'column_names' => [
+    'role_pivot_key' => null,       // role_id
+    'permission_pivot_key' => null, // permission_id
+    'model_morph_key' => 'model_id',
+],
+
+// config/permissions-manager.php
+'models' => [
+    'permission' => App\Models\Permission::class,
+    'role' => App\Models\Role::class,
+    'user' => App\Models\User::class,
+],
+```
+
+3. Publish and run the package's migrations as usual (Step 2 and Step 3 above). They only add `description`, `category` and `is_protected` columns, so they work on integer-id tables.
+
+The Livewire actions take the record's key, whichever type it is: `editRole(int|string $key)`, `duplicateRole(…)`, `deleteRole(…)`, `editPermission(…)` and `deletePermission(…)`. The selected ids in `form.permissions` and `form.roles` are held as strings, matching what the browser's checkboxes send.
+
 ### Overriding TableBuilder Components
 
 The package uses ACT Training's QueryBuilder package for tables. You can override column components by publishing views.
@@ -368,7 +469,7 @@ composer require act-training/query-builder
 
 **Error:** Primary key not found
 
-**Solution:** Ensure Spatie Permission is configured for UUID:
+**Solution:** If you use the package's UUID models, ensure Spatie Permission is configured for UUID (apps with integer ids should see [Integer ids (non-UUID apps)](#integer-ids-non-uuid-apps) instead):
 ```php
 // config/permission.php
 'column_names' => [

@@ -72,7 +72,7 @@
                     @forelse ($this->availableRoles as $role)
                         <flux:checkbox
                             wire:model.live="form.roles"
-                            value="{{ $role->uuid }}"
+                            value="{{ $role->getKey() }}"
                             label="{{ $role->name }}"
                             aria-label="Assign to {{ $role->name }} role"
                         />

@@ -2,13 +2,17 @@
 
 namespace ACTTraining\PermissionsManager\Livewire;
 
+use ACTTraining\PermissionsManager\Livewire\Concerns\AuthorizesActions;
+use ACTTraining\PermissionsManager\Livewire\Concerns\ResolvesPermissionModels;
 use ACTTraining\PermissionsManager\Models\Permission;
 use ACTTraining\PermissionsManager\Models\Role;
 use ACTTraining\PermissionsManager\Support\PermissionCategories;
+use ACTTraining\PermissionsManager\Support\PermissionTables;
 use ACTTraining\QueryBuilder\Support\Columns\Column;
 use ACTTraining\QueryBuilder\TableBuilder;
 use Exception;
 use Flux\Flux;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,15 +23,18 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RolesTable extends TableBuilder
 {
+    use AuthorizesActions;
+    use ResolvesPermissionModels;
+
     public bool $showRoleModal = false;
 
     public bool $showDeleteModal = false;
 
-    public ?string $editingRole = null;
+    public int|string|null $editingRole = null;
 
     public bool $editingRoleIsProtected = false;
 
-    public ?string $deletingRole = null;
+    public int|string|null $deletingRole = null;
 
     public ?string $categoryFilter = null;
 
@@ -43,13 +50,25 @@ class RolesTable extends TableBuilder
     protected $listeners = ['create-role' => 'createRole'];
 
     /**
+     * Use the configured role model and check viewAny on every request.
+     *
+     * @throws AuthorizationException
+     */
+    public function booted(): void
+    {
+        $this->model = $this->roleModel();
+
+        parent::booted();
+
+        $this->authorizeAction('viewAny', $this->roleModel());
+    }
+
+    /**
      * Build the query for roles with eager loading.
      */
     public function query(): Builder
     {
-        $roleModel = config('permissions-manager.models.role', Role::class);
-
-        return $roleModel::query()
+        return $this->roleModel()::query()
             ->with(['permissions'])
             ->withCount([
                 'users as users_count',
@@ -88,7 +107,7 @@ class RolesTable extends TableBuilder
     #[Computed]
     public function availablePermissions(): Collection
     {
-        $permissionModel = config('permissions-manager.models.permission', Permission::class);
+        $permissionModel = $this->permissionModel();
         $guardName = config('permissions-manager.guard.show_selection')
             ? $this->form['guard_name']
             : config('permissions-manager.guard.default', 'web');
@@ -136,6 +155,8 @@ class RolesTable extends TableBuilder
     #[On('create-role')]
     public function createRole(): void
     {
+        $this->authorizeAction('create', $this->roleModel());
+
         $this->resetForm();
         $this->editingRole = null;
         $this->editingRoleIsProtected = false;
@@ -146,19 +167,20 @@ class RolesTable extends TableBuilder
     /**
      * Open modal to edit an existing role.
      */
-    public function editRole(string $uuid): void
+    public function editRole(int|string $key): void
     {
-        try {
-            $roleModel = config('permissions-manager.models.role', Role::class);
-            $role = $roleModel::with('permissions')->findOrFail($uuid);
+        $this->authorizeAction('update', $this->roleModel(), $key);
 
-            $this->editingRole = $role->uuid;
+        try {
+            $role = $this->roleModel()::with('permissions')->findOrFail($key);
+
+            $this->editingRole = $role->getKey();
             $this->editingRoleIsProtected = (bool) $role->is_protected;
             $this->form = [
                 'name' => $role->name,
                 'description' => $role->description ?? '',
                 'guard_name' => $role->guard_name,
-                'permissions' => $role->permissions->pluck('uuid')->toArray(),
+                'permissions' => $this->keysAsStrings($role->permissions),
             ];
             $this->categoryFilter = null;
 
@@ -175,11 +197,13 @@ class RolesTable extends TableBuilder
     /**
      * Duplicate an existing role with all its permissions.
      */
-    public function duplicateRole(string $uuid): void
+    public function duplicateRole(int|string $key): void
     {
+        $this->authorizeAction('create', $this->roleModel());
+
         try {
-            $roleModel = config('permissions-manager.models.role', Role::class);
-            $originalRole = $roleModel::with('permissions')->findOrFail($uuid);
+            $roleModel = $this->roleModel();
+            $originalRole = $roleModel::with('permissions')->findOrFail($key);
 
             DB::transaction(function () use ($originalRole, $roleModel) {
                 // Generate a unique name for the duplicated role
@@ -230,6 +254,12 @@ class RolesTable extends TableBuilder
      */
     public function saveRole(): void
     {
+        if ($this->editingRole) {
+            $this->authorizeAction('update', $this->roleModel(), $this->editingRole);
+        } else {
+            $this->authorizeAction('create', $this->roleModel());
+        }
+
         $this->validate($this->getValidationRules());
 
         if ($this->isRenamingProtectedRole()) {
@@ -240,8 +270,8 @@ class RolesTable extends TableBuilder
 
         try {
             DB::transaction(function () {
-                $roleModel = config('permissions-manager.models.role', Role::class);
-                $permissionModel = config('permissions-manager.models.permission', Permission::class);
+                $roleModel = $this->roleModel();
+                $permissionModel = $this->permissionModel();
 
                 if ($this->editingRole) {
                     // Update existing role (protected roles keep their name)
@@ -262,7 +292,7 @@ class RolesTable extends TableBuilder
 
                 // Sync permissions
                 if (! empty($this->form['permissions'])) {
-                    $permissions = $permissionModel::whereIn('uuid', $this->form['permissions'])->get();
+                    $permissions = $permissionModel::whereKey($this->form['permissions'])->get();
                     $role->syncPermissions($permissions);
                 } else {
                     $role->syncPermissions([]);
@@ -296,9 +326,11 @@ class RolesTable extends TableBuilder
     /**
      * Open delete confirmation modal.
      */
-    public function deleteRole(string $uuid): void
+    public function deleteRole(int|string $key): void
     {
-        $this->deletingRole = $uuid;
+        $this->authorizeAction('delete', $this->roleModel(), $key);
+
+        $this->deletingRole = $key;
         $this->showDeleteModal = true;
     }
 
@@ -311,9 +343,10 @@ class RolesTable extends TableBuilder
             return;
         }
 
+        $this->authorizeAction('delete', $this->roleModel(), $this->deletingRole);
+
         try {
-            $roleModel = config('permissions-manager.models.role', Role::class);
-            $role = $roleModel::findOrFail($this->deletingRole);
+            $role = $this->roleModel()::findOrFail($this->deletingRole);
 
             // Check if role is protected
             if ($role->is_protected) {
@@ -330,8 +363,8 @@ class RolesTable extends TableBuilder
             }
 
             // Check if role is assigned to users
-            $userCount = DB::table('model_has_roles')
-                ->where('role_id', $role->uuid)
+            $userCount = DB::table(PermissionTables::modelHasRoles())
+                ->where(PermissionTables::rolePivotKey(), $role->getKey())
                 ->count();
 
             if ($userCount > 0) {
@@ -408,7 +441,7 @@ class RolesTable extends TableBuilder
                     return $value ?? 0;
                 }),
 
-            Column::make('', 'uuid')
+            Column::make('', (new ($this->roleModel()))->getKeyName())
                 ->component('permissions-manager::role-actions'),
         ];
     }
@@ -427,20 +460,22 @@ class RolesTable extends TableBuilder
     protected function getValidationRules(): array
     {
         $guardName = $this->form['guard_name'];
+        $role = new ($this->roleModel());
+        $permission = new ($this->permissionModel());
 
         return [
             'form.name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('roles', 'name')
+                Rule::unique($role->getTable(), 'name')
                     ->where('guard_name', $guardName)
-                    ->ignore($this->editingRole, 'uuid'),
+                    ->ignore($this->editingRole, $role->getKeyName()),
             ],
             'form.description' => 'nullable|string|max:500',
             'form.guard_name' => 'required|string',
             'form.permissions' => 'array',
-            'form.permissions.*' => 'exists:permissions,uuid',
+            'form.permissions.*' => Rule::exists($permission->getTable(), $permission->getKeyName()),
         ];
     }
 
@@ -453,8 +488,7 @@ class RolesTable extends TableBuilder
             return false;
         }
 
-        $roleModel = config('permissions-manager.models.role', Role::class);
-        $role = $roleModel::find($this->editingRole);
+        $role = $this->roleModel()::find($this->editingRole);
 
         return $role !== null
             && $role->is_protected
