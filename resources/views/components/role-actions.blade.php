@@ -1,29 +1,46 @@
 @props(['row', 'value' => null, 'column' => null])
 
+@use('ACTTraining\PermissionsManager\Support\Authorization')
+
+@php
+    $canUpdate = Authorization::allows('update', $row);
+    $canDuplicate = Authorization::allows('create', $row::class);
+    $canDelete = ! $row->is_protected
+        && Authorization::allows('delete', $row);
+@endphp
+
 <div class="flex justify-end">
-    <flux:dropdown position="left">
-        <flux:button variant="ghost" size="sm" icon="ellipsis-vertical" aria-label="Actions for {{ $row->name }} role"></flux:button>
+    @if ($canUpdate || $canDuplicate || $canDelete)
+        <flux:dropdown position="left">
+            <flux:button variant="ghost" size="sm" icon="ellipsis-vertical" aria-label="Actions for {{ $row->name }} role"></flux:button>
 
-        <flux:menu>
-            <flux:menu.item wire:click="editRole('{{ $row->uuid }}')" icon="pencil">
-                Edit
-            </flux:menu.item>
+            <flux:menu>
+                @if ($canUpdate)
+                    <flux:menu.item wire:click="editRole('{{ $row->getKey() }}')" icon="pencil">
+                        Edit
+                    </flux:menu.item>
+                @endif
 
-            <flux:menu.item wire:click="duplicateRole('{{ $row->uuid }}')" icon="document-duplicate">
-                Duplicate
-            </flux:menu.item>
+                @if ($canDuplicate)
+                    <flux:menu.item wire:click="duplicateRole('{{ $row->getKey() }}')" icon="document-duplicate">
+                        Duplicate
+                    </flux:menu.item>
+                @endif
 
-            @if (!$row->is_protected)
-                <flux:menu.separator />
+                @if ($canDelete)
+                    @if ($canUpdate || $canDuplicate)
+                        <flux:menu.separator />
+                    @endif
 
-                <flux:menu.item
-                    wire:click="deleteRole('{{ $row->uuid }}')"
-                    icon="trash"
-                    variant="danger"
-                >
-                    Delete
-                </flux:menu.item>
-            @endif
-        </flux:menu>
-    </flux:dropdown>
+                    <flux:menu.item
+                        wire:click="deleteRole('{{ $row->getKey() }}')"
+                        icon="trash"
+                        variant="danger"
+                    >
+                        Delete
+                    </flux:menu.item>
+                @endif
+            </flux:menu>
+        </flux:dropdown>
+    @endif
 </div>

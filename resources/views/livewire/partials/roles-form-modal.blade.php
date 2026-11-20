@@ -84,7 +84,7 @@
                                 <div class="flex items-start">
                                     <flux:checkbox
                                         wire:model.live="form.permissions"
-                                        value="{{ $permission->uuid }}"
+                                        value="{{ $permission->getKey() }}"
                                         label="{{ $permission->name }}"
                                         aria-label="Assign {{ $permission->name }} permission"
                                         class="w-full"

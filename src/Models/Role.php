@@ -3,6 +3,7 @@
 namespace ACTTraining\PermissionsManager\Models;
 
 use ACTTraining\PermissionsManager\Models\Concerns\HasUuidPrimaryKey;
+use ACTTraining\PermissionsManager\Support\PermissionTables;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -43,17 +44,20 @@ class Role extends SpatieRole
     }
 
     /**
-     * Override the permissions relationship to use uuid as the key.
+     * Override the permissions relationship to use the configured permission
+     * model, joined on each model's own primary key.
      */
     public function permissions(): BelongsToMany
     {
+        $permissionModel = config('permissions-manager.models.permission', Permission::class);
+
         return $this->belongsToMany(
-            config('permissions-manager.models.permission', Permission::class),
-            config('permission.table_names.role_has_permissions'),
-            'role_id',
-            'permission_id',
-            'uuid',  // Parent key (role's primary key)
-            'uuid'   // Related key (permission's primary key)
+            $permissionModel,
+            PermissionTables::roleHasPermissions(),
+            PermissionTables::rolePivotKey(),
+            PermissionTables::permissionPivotKey(),
+            $this->getKeyName(),
+            (new $permissionModel)->getKeyName()
         );
     }
 

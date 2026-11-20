@@ -2,15 +2,19 @@
 
 namespace ACTTraining\PermissionsManager\Livewire;
 
+use ACTTraining\PermissionsManager\Livewire\Concerns\AuthorizesActions;
+use ACTTraining\PermissionsManager\Livewire\Concerns\ResolvesPermissionModels;
 use ACTTraining\PermissionsManager\Models\Permission;
 use ACTTraining\PermissionsManager\Models\Role;
 use ACTTraining\PermissionsManager\Support\PermissionCategories;
+use ACTTraining\PermissionsManager\Support\PermissionTables;
 use ACTTraining\QueryBuilder\Support\Columns\Column;
 use ACTTraining\QueryBuilder\Support\Filters\SelectFilter;
 use ACTTraining\QueryBuilder\Support\Filters\TextFilter;
 use ACTTraining\QueryBuilder\TableBuilder;
 use Exception;
 use Flux\Flux;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -21,13 +25,16 @@ use Spatie\Permission\PermissionRegistrar;
 
 class PermissionsTable extends TableBuilder
 {
+    use AuthorizesActions;
+    use ResolvesPermissionModels;
+
     public bool $showPermissionModal = false;
 
     public bool $showDeleteModal = false;
 
-    public ?string $editingPermission = null;
+    public int|string|null $editingPermission = null;
 
-    public ?string $deletingPermission = null;
+    public int|string|null $deletingPermission = null;
 
     public array $form = [
         'name' => '',
@@ -44,37 +51,65 @@ class PermissionsTable extends TableBuilder
     protected $listeners = ['create-permission' => 'createPermission'];
 
     /**
+     * Use the configured permission model and check viewAny on every request.
+     *
+     * @throws AuthorizationException
+     */
+    public function booted(): void
+    {
+        $this->model = $this->permissionModel();
+
+        parent::booted();
+
+        $this->authorizeAction('viewAny', $this->permissionModel());
+    }
+
+    /**
      * Build the query for permissions with eager loading.
+     *
+     * Table and column names come from the model and spatie's permission
+     * config, so the user count works for UUID and integer keys alike.
      */
     public function query(): Builder
     {
-        $permissionModel = config('permissions-manager.models.permission', Permission::class);
-        $userModel = config('permissions-manager.models.user');
+        $permissionModel = $this->permissionModel();
+        $permission = new $permissionModel;
+        $userMorphClass = $this->userMorphClass();
+
+        $grammar = $permission->getConnection()->getQueryGrammar();
+        $permissions = $grammar->wrapTable($permission->getTable());
+        $permissionKey = $permissions . '.' . $grammar->wrap($permission->getKeyName());
+        $modelHasPermissions = $grammar->wrapTable(PermissionTables::modelHasPermissions());
+        $modelHasRoles = $grammar->wrapTable(PermissionTables::modelHasRoles());
+        $roleHasPermissions = $grammar->wrapTable(PermissionTables::roleHasPermissions());
+        $morphKey = $grammar->wrap(PermissionTables::modelMorphKey());
+        $rolePivot = $grammar->wrap(PermissionTables::rolePivotKey());
+        $permissionPivot = $grammar->wrap(PermissionTables::permissionPivotKey());
 
         $query = $permissionModel::query()
             ->with(['roles'])
-            ->selectRaw('
-                permissions.*,
+            ->selectRaw("
+                {$permissions}.*,
                 (
                     SELECT COUNT(DISTINCT user_id) FROM (
-                        SELECT model_uuid as user_id
-                        FROM model_has_permissions
-                        WHERE permission_id = permissions.uuid
+                        SELECT {$morphKey} as user_id
+                        FROM {$modelHasPermissions}
+                        WHERE {$permissionPivot} = {$permissionKey}
                         AND model_type = ?
                         UNION
-                        SELECT mhr.model_uuid as user_id
-                        FROM model_has_roles mhr
-                        INNER JOIN role_has_permissions rhp ON mhr.role_id = rhp.role_id
-                        WHERE rhp.permission_id = permissions.uuid
+                        SELECT mhr.{$morphKey} as user_id
+                        FROM {$modelHasRoles} mhr
+                        INNER JOIN {$roleHasPermissions} rhp ON mhr.{$rolePivot} = rhp.{$rolePivot}
+                        WHERE rhp.{$permissionPivot} = {$permissionKey}
                         AND mhr.model_type = ?
                     ) as all_users
                 ) as users_count
-            ', [$userModel, $userModel])
+            ", [$userMorphClass, $userMorphClass])
             ->when(! config('permissions-manager.guard.show_selection'), function ($query) {
                 $query->where('guard_name', config('permissions-manager.guard.default', 'web'));
             });
 
-        return $query->orderByRaw('LOWER(permissions.name)');
+        return $query->orderByRaw("LOWER({$permissions}.name)");
     }
 
     /**
@@ -98,7 +133,7 @@ class PermissionsTable extends TableBuilder
     #[Computed]
     public function availableRoles(): Collection
     {
-        $roleModel = config('permissions-manager.models.role', Role::class);
+        $roleModel = $this->roleModel();
         $guardName = config('permissions-manager.guard.show_selection')
             ? $this->form['guard_name']
             : config('permissions-manager.guard.default', 'web');
@@ -114,6 +149,8 @@ class PermissionsTable extends TableBuilder
     #[On('create-permission')]
     public function createPermission(): void
     {
+        $this->authorizeAction('create', $this->permissionModel());
+
         $this->resetForm();
         $this->editingPermission = null;
         $this->showPermissionModal = true;
@@ -122,19 +159,20 @@ class PermissionsTable extends TableBuilder
     /**
      * Open modal to edit an existing permission.
      */
-    public function editPermission(string $uuid): void
+    public function editPermission(int|string $key): void
     {
-        try {
-            $permissionModel = config('permissions-manager.models.permission', Permission::class);
-            $permission = $permissionModel::findOrFail($uuid);
+        $this->authorizeAction('update', $this->permissionModel(), $key);
 
-            $this->editingPermission = $permission->uuid;
+        try {
+            $permission = $this->permissionModel()::findOrFail($key);
+
+            $this->editingPermission = $permission->getKey();
             $this->form = [
                 'name' => $permission->name,
                 'description' => $permission->description ?? '',
                 'category' => $permission->category,
                 'guard_name' => $permission->guard_name,
-                'roles' => $permission->roles->pluck('uuid')->toArray(),
+                'roles' => $this->keysAsStrings($permission->roles),
             ];
 
             $this->showPermissionModal = true;
@@ -152,12 +190,18 @@ class PermissionsTable extends TableBuilder
      */
     public function savePermission(): void
     {
+        if ($this->editingPermission) {
+            $this->authorizeAction('update', $this->permissionModel(), $this->editingPermission);
+        } else {
+            $this->authorizeAction('create', $this->permissionModel());
+        }
+
         $this->validate($this->getValidationRules());
 
         try {
             DB::transaction(function () {
-                $permissionModel = config('permissions-manager.models.permission', Permission::class);
-                $roleModel = config('permissions-manager.models.role', Role::class);
+                $permissionModel = $this->permissionModel();
+                $roleModel = $this->roleModel();
 
                 if ($this->editingPermission) {
                     // Update existing permission
@@ -179,7 +223,7 @@ class PermissionsTable extends TableBuilder
 
                 // Sync roles
                 if (! empty($this->form['roles'])) {
-                    $roles = $roleModel::whereIn('uuid', $this->form['roles'])->get();
+                    $roles = $roleModel::whereKey($this->form['roles'])->get();
                     $permission->syncRoles($roles);
                 } else {
                     $permission->syncRoles([]);
@@ -213,9 +257,11 @@ class PermissionsTable extends TableBuilder
     /**
      * Open delete confirmation modal.
      */
-    public function deletePermission(string $uuid): void
+    public function deletePermission(int|string $key): void
     {
-        $this->deletingPermission = $uuid;
+        $this->authorizeAction('delete', $this->permissionModel(), $key);
+
+        $this->deletingPermission = $key;
         $this->showDeleteModal = true;
     }
 
@@ -228,13 +274,14 @@ class PermissionsTable extends TableBuilder
             return;
         }
 
+        $this->authorizeAction('delete', $this->permissionModel(), $this->deletingPermission);
+
         try {
-            $permissionModel = config('permissions-manager.models.permission', Permission::class);
-            $permission = $permissionModel::findOrFail($this->deletingPermission);
+            $permission = $this->permissionModel()::findOrFail($this->deletingPermission);
 
             // Check if permission is assigned to users
-            $userCount = DB::table('model_has_permissions')
-                ->where('permission_id', $permission->uuid)
+            $userCount = DB::table(PermissionTables::modelHasPermissions())
+                ->where(PermissionTables::permissionPivotKey(), $permission->getKey())
                 ->count();
 
             if ($userCount > 0) {
@@ -312,7 +359,7 @@ class PermissionsTable extends TableBuilder
                     return $value ?? 0;
                 }),
 
-            Column::make('', 'uuid')
+            Column::make('', (new ($this->permissionModel()))->getKeyName())
                 ->component('permissions-manager::permission-actions'),
         ];
     }
@@ -336,22 +383,36 @@ class PermissionsTable extends TableBuilder
     protected function getValidationRules(): array
     {
         $guardName = $this->form['guard_name'];
+        $permission = new ($this->permissionModel());
+        $role = new ($this->roleModel());
 
         return [
             'form.name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('permissions', 'name')
+                Rule::unique($permission->getTable(), 'name')
                     ->where('guard_name', $guardName)
-                    ->ignore($this->editingPermission, 'uuid'),
+                    ->ignore($this->editingPermission, $permission->getKeyName()),
             ],
             'form.description' => 'nullable|string|max:500',
             'form.category' => 'nullable|string',
             'form.guard_name' => 'required|string',
             'form.roles' => 'array',
-            'form.roles.*' => 'exists:roles,uuid',
+            'form.roles.*' => Rule::exists($role->getTable(), $role->getKeyName()),
         ];
+    }
+
+    /**
+     * The model_type value spatie stores for the configured user model.
+     */
+    protected function userMorphClass(): ?string
+    {
+        $userModel = config('permissions-manager.models.user');
+
+        return $userModel && class_exists($userModel)
+            ? (new $userModel)->getMorphClass()
+            : $userModel;
     }
 
     /**

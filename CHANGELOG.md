@@ -2,9 +2,23 @@
 
 All notable changes to `laravel-permissions-manager` will be documented in this file.
 
-## [Unreleased]
+## [1.3.0]
 
-Suggested version: 1.2.0 (additive; nothing changes for apps on Laravel 12).
+Additive: apps using the package's UUID models, with authorisation left off, see no change in behaviour.
+
+### Added
+- Integer id support. Apps whose Spatie tables use `bigint` ids can point `permissions-manager.models` (and `permission.models`) at their own models extending Spatie's `Role` and `Permission`. See "Integer ids (non-UUID apps)" in the README.
+- Optional authorisation, off by default: `permissions-manager.authorization.enabled` (env `PERMISSIONS_MANAGER_AUTHORIZE`). When on, every action checks Laravel's Gate (`viewAny`, `create`, `update`, `delete`) against the configured model, throws a 403 when denied, and hides the matching buttons. The page shows only the tables the user may view.
+- Tests against Spatie's standard integer-id tables, for authorisation on and off, and for the UUID models.
+
+### Changed
+- The Livewire components no longer hard-code `uuid`. They use each model's own key, key name and table, and Spatie's configured table names, `model_morph_key`, `role_pivot_key` and `permission_pivot_key` (including in the permissions table's user-count query).
+- `editRole`, `duplicateRole`, `deleteRole`, `editPermission` and `deletePermission` take `int|string $key`; `editingRole`, `deletingRole`, `editingPermission` and `deletingPermission` are `int|string|null`.
+- The ids in `form.permissions` and `form.roles` are held as strings, so the checkboxes stay ticked for integer ids.
+- The user count matches `model_type` against the user model's morph class, so apps with a morph map are counted correctly.
+- The package `Role` model's `permissions()` relationship uses the models' key names and Spatie's pivot column names rather than literal `uuid`, `role_id` and `permission_id`.
+
+## [1.2.0] - 2026-11-03
 
 ### Added
 - Laravel 13 support. Requires `laravel/framework` `^12.0|^13.0`. Laravel 13 itself needs PHP 8.3+.
